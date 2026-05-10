@@ -1,0 +1,119 @@
+@using LiftAI.App.Models
+
+<div class="set-row border rounded-3 p-3 mb-3 bg-body">
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3 flex-wrap">
+        <div class="fw-semibold">Set @Set.SetNumber</div>
+
+        <div class="d-flex align-items-center gap-2 set-row__actions">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    @onclick="DeleteSetAsync">
+                Delete
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-md-4">
+            <label class="form-label">Weight (kg)</label>
+            <div class="input-group">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="() => AdjustWeightAsync(-5m)">
+                    -5
+                </button>
+
+                <InputNumber TValue="decimal"
+                             class="form-control text-center"
+                             @bind-Value="Set.Weight"
+                             @bind-Value:after="NotifyChangedAsync"
+                             step="5" />
+
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="() => AdjustWeightAsync(5m)">
+                    +5
+                </button>
+            </div>
+        </div>
+
+        @if (IsTimed)
+        {
+            <div class="col-12 col-md-4">
+                <label class="form-label">Duration (seconds)</label>
+                <InputNumber TValue="int?"
+                             class="form-control"
+                             @bind-Value="Set.DurationSeconds"
+                             @bind-Value:after="NotifyChangedAsync" />
+            </div>
+        }
+        else
+        {
+            <div class="col-12 col-md-4">
+                <label class="form-label">Reps</label>
+                <InputNumber TValue="int?"
+                             class="form-control"
+                             @bind-Value="Set.Reps"
+                             @bind-Value:after="NotifyChangedAsync" />
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label d-flex align-items-center gap-2">
+                    RIR
+                    <span class="rir-info" title="RIR means Reps In Reserve - how many reps you could still perform before failure.">i</span>
+                </label>
+                <InputNumber TValue="int?"
+                             class="form-control"
+                             @bind-Value="Set.RIR"
+                             @bind-Value:after="NotifyChangedAsync" />
+                <div class="form-text">Reps left in reserve at the end of the set.</div>
+            </div>
+        }
+
+        <div class="col-12">
+            <label class="form-label">Notes</label>
+            <InputTextArea class="form-control"
+                           rows="2"
+                           @bind-Value="Set.Notes"
+                           @bind-Value:after="NotifyChangedAsync" />
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ExerciseSetVm Set { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public bool IsTimed { get; set; }
+
+    [Parameter]
+    public EventCallback<ExerciseSetVm> OnChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnDeleteRequested { get; set; }
+
+    private async Task NotifyChangedAsync()
+    {
+        if (OnChanged.HasDelegate)
+        {
+            await OnChanged.InvokeAsync(Set);
+        }
+    }
+
+
+    private async Task DeleteSetAsync()
+    {
+        if (OnDeleteRequested.HasDelegate)
+        {
+            await OnDeleteRequested.InvokeAsync();
+        }
+    }
+
+    private async Task AdjustWeightAsync(decimal delta)
+    {
+        Set.Weight = Math.Max(0m, Set.Weight + delta);
+        await NotifyChangedAsync();
+    }
+}

@@ -1,0 +1,124 @@
+@page "/register"
+@using LiftAI.Shared.Models.Dtos
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject ILogger<Register> Logger
+
+<PageTitle>Register - LiftAI</PageTitle>
+
+<section class="auth-page">
+    <div class="auth-page__panel">
+        <h1 class="mb-2">Create your account</h1>
+        <p class="text-muted mb-0">Set up LiftAI and start logging every workout with confidence.</p>
+    </div>
+
+    <div class="auth-card">
+        <EditForm Model="_registerModel" OnValidSubmit="HandleRegisterAsync">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="form-group mb-3">
+                <label for="fullname">Full Name</label>
+                <InputText id="fullname"
+                           @bind-Value="_registerModel.FullName"
+                           class="form-control"
+                           autocomplete="name" />
+                <ValidationMessage For="() => _registerModel.FullName" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="email">Email *</label>
+                <InputText id="email" type="email" required
+                           @bind-Value="_registerModel.Email"
+                           class="form-control"
+                           autocomplete="email" />
+                <ValidationMessage For="() => _registerModel.Email" />
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="password">Password</label>
+                <InputText type="password" id="password"
+                           @bind-Value="_registerModel.Password"
+                           class="form-control"
+                           autocomplete="new-password" />
+                <ValidationMessage For="() => _registerModel.Password" />
+            </div>
+
+            <button type="submit" class="btn btn-primary auth-card__submit" disabled="@_isLoading">
+                @(_isLoading ? "Creating account..." : "Register")
+            </button>
+        </EditForm>
+
+        <p class="mt-3 mb-0 text-muted">
+            Already have an account? <a href="/login">Login</a>
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="mt-3 @_messageClass">
+                @_message
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly RegisterDto _registerModel = new()
+    {
+        Email = string.Empty,
+        Password = string.Empty
+    };
+    private bool _isLoading;
+    private string? _message;
+    private string _messageClass = "";
+
+    private async Task HandleRegisterAsync()
+    {
+        _isLoading = true;
+        _message = null;
+        _messageClass = "";
+
+        try
+        {
+            var api = HttpClientFactory.CreateClient("Api");
+
+            var httpResponse = await api.PostAsJsonAsync("api/auth/register", _registerModel);
+
+            if (httpResponse.IsSuccessStatusCode)
+            {
+                var result = await httpResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+
+                if (result?.Success == true)
+                {
+                    _message = "Account created successfully! You can now login.";
+                    _messageClass = "text-success";
+
+                    // Optional: Auto redirect to login after 2 seconds
+                    await Task.Delay(1500);
+                    Navigation.NavigateTo("/login");
+                }
+                else
+                {
+                    _message = result?.Message ?? "Registration failed.";
+                    _messageClass = "text-danger";
+                }
+            }
+            else
+            {
+                var errorResult = await httpResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+                _message = errorResult?.Message ?? "Registration failed. Please try again.";
+                _messageClass = "text-danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Registration failed");
+            _message = "An unexpected error occurred while creating your account.";
+            _messageClass = "text-danger";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

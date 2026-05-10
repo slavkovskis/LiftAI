@@ -1,0 +1,551 @@
+@page "/workouts/log"
+@page "/workouts/log/{Id:int}"
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Exercise
+@using LiftAI.Shared.Models.Dtos.Workout
+@using Microsoft.AspNetCore.Components.Authorization
+@inject ActiveWorkoutState ActiveWorkoutState
+@inject WorkoutService WorkoutService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+@implements IDisposable
+
+<PageTitle>Log Workout</PageTitle>
+
+<section class="workout-page @(ActiveWorkoutState.HasActiveWorkout ? "" : "workout-page--empty")">
+    @if (!ActiveWorkoutState.HasActiveWorkout)
+    {
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="alert @(_isError ? "alert-danger" : "alert-success")">
+                @_message
+            </div>
+        }
+
+        <div class="workout-hero">
+            <div class="workout-hero__icon" aria-hidden="true">
+                <i class="bi bi-stopwatch"></i>
+            </div>
+
+            <h1 class="workout-hero__title">Ready to Lift?</h1>
+            <p class="workout-hero__subtitle">
+                Track your session quickly with a clean, mobile-first flow.
+            </p>
+
+            <button class="btn btn-primary workout-hero__cta" @onclick="ShowExercisePicker">
+                <i class="bi bi-play-fill" aria-hidden="true"></i>
+                <span>Start Workout</span>
+            </button>
+
+            <p class="workout-hero__tip">Tap to select your first exercise.</p>
+        </div>
+    }
+    else
+    {
+        <header class="workout-page__header">
+            <div>
+                <h1 class="h3 mb-1">@(_isEditMode ? "Edit Workout" : "Workout Logger")</h1>
+                <p class="text-muted mb-0">
+                    @(_isEditMode
+                        ? "Update the exercises and sets you already logged."
+                        : "Track your session quickly with a clean, mobile-first flow.")
+                </p>
+            </div>
+
+            <div class="workout-page__timers">
+                <div class="workout-page__elapsed">
+                    <span class="text-muted">@(_isEditMode ? "Elapsed (frozen)" : "Elapsed")</span>
+                    <strong>@FormatElapsedTime()</strong>
+                </div>
+
+                @if (_isEditMode)
+                {
+                    <div class="workout-page__rest-card">
+                        <span class="text-muted">Editing</span>
+                        <div class="small text-muted mt-2">Rest timer is disabled while editing a saved workout.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="workout-page__rest-card">
+                        <span class="text-muted">Rest</span>
+                        <div class="workout-page__timer-alert mt-2">
+                            <label class="form-label form-label-sm mb-1 text-muted" for="timerAlertMode">Timer alert</label>
+                            <select id="timerAlertMode"
+                                    class="form-select form-select-sm"
+                                    @bind="_timerNotificationMode"
+                                    @bind:after="PersistTimerNotificationModeAsync">
+                                <option value="@TimerNotificationMode.Both">Sound + Popup</option>
+                                <option value="@TimerNotificationMode.SoundOnly">Sound only</option>
+                                <option value="@TimerNotificationMode.PopupOnly">Popup only</option>
+                            </select>
+                        </div>
+
+                        @if (_showCentralRestTimer)
+                        {
+                            <RestTimer @key="_restTimerVersion"
+                                       TotalSeconds="_centralRestSeconds"
+                                       AutoStart="true"
+                                       EnableSound="IsTimerSoundEnabled"
+                                       EnablePopup="IsTimerPopupEnabled" />
+                        }
+                        else
+                        {
+                            <div class="small text-muted">Complete a set to start the timer.</div>
+                        }
+                    </div>
+                }
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <div class="alert @(_isError ? "alert-danger" : "alert-success")">
+                @_message
+            </div>
+        }
+
+        <div class="workout-page__notes card mb-3">
+            <div class="card-body">
+                <label class="form-label fw-semibold mb-2">Workout Notes</label>
+                <InputTextArea class="form-control"
+                               rows="2"
+                               placeholder="How did this session feel?"
+                               @bind-Value="ActiveWorkoutState.WorkoutNotes" />
+            </div>
+        </div>
+
+        <div class="workout-page__toolbar mb-4">
+            <button class="btn btn-outline-primary" @onclick="ShowExercisePicker">
+                + Add Exercise
+            </button>
+
+            <button class="btn btn-outline-danger" @onclick="CancelWorkoutAsync" disabled="@_isBusy">
+                @(_isEditMode ? "Discard Changes" : "Cancel Workout")
+            </button>
+
+            <button class="btn btn-success" @onclick="FinishWorkoutAsync" disabled="@_isBusy">
+                @(_isEditMode ? "Save Changes" : "Finish Workout")
+            </button>
+        </div>
+
+        @for (var i = 0; i < ActiveWorkoutState.Exercises.Count; i++)
+        {
+            var workoutExercise = ActiveWorkoutState.Exercises[i];
+
+            @if (_isEditMode)
+            {
+                <WorkoutExerciseCard @key="workoutExercise"
+                                     Exercise="workoutExercise"
+                                     ExerciseIndex="i" />
+            }
+            else
+            {
+                <WorkoutExerciseCard @key="workoutExercise"
+                                     Exercise="workoutExercise"
+                                     ExerciseIndex="i"
+                                     OnRestTriggered="TriggerRestTimerAsync" />
+            }
+        }
+    }
+</section>
+
+@if (_showInvalidWorkoutPopup)
+{
+    <div class="workout-modal-backdrop">
+        <section class="workout-modal-panel" role="dialog" aria-modal="true" aria-labelledby="invalidWorkoutTitle">
+            <h5 id="invalidWorkoutTitle" class="mb-2">Workout not saved</h5>
+            <p class="text-muted mb-3">
+                Some sets are still incomplete. Finish or remove them before saving.
+            </p>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-primary" @onclick="DismissInvalidWorkoutPopup">OK</button>
+            </div>
+        </section>
+    </div>
+}
+
+<ExercisePickerModal IsOpen="_showExercisePicker"
+                     OnExerciseSelected="HandleExerciseSelected"
+                     OnClose="@HideExercisePicker" />
+
+@if (_showGuestSignupPrompt)
+{
+    <div class="workout-modal-backdrop">
+        <section class="workout-modal-panel" role="dialog" aria-modal="true" aria-labelledby="guestPromptTitle">
+            <h5 id="guestPromptTitle" class="mb-2">Nice work. Want to keep this progress?</h5>
+            <p class="text-muted mb-3">
+                Your guest workout is complete, but it is not saved to your history. Create an account or log in to save workouts and continue where you left off.
+            </p>
+
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-primary" @onclick="GoToRegister">Create Account</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="GoToLogin">Login</button>
+                <button type="button" class="btn btn-link" @onclick="CloseGuestPrompt">Continue as guest</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool _showExercisePicker;
+    private bool _isBusy;
+    private bool _isError;
+    private string? _message;
+    private Timer? _timer;
+    private int _centralRestSeconds = 120;
+    private int _restTimerVersion;
+    private bool _showCentralRestTimer;
+    private bool _showGuestSignupPrompt;
+    private bool _showInvalidWorkoutPopup;
+    private bool _isEditMode;
+    private int? _editingWorkoutId;
+    private DateTime _editingWorkoutDate;
+    private int? _editingWorkoutDurationMinutes;
+    private TimerNotificationMode _timerNotificationMode = TimerNotificationMode.Both;
+    private bool _timerNotificationModeLoaded;
+    private const string TimerNotificationModeStorageKey = "workout.timerNotificationMode";
+
+    private bool IsTimerSoundEnabled =>
+        _timerNotificationMode == TimerNotificationMode.Both ||
+        _timerNotificationMode == TimerNotificationMode.SoundOnly;
+
+    private bool IsTimerPopupEnabled =>
+        _timerNotificationMode == TimerNotificationMode.Both ||
+        _timerNotificationMode == TimerNotificationMode.PopupOnly;
+
+    private enum TimerNotificationMode
+    {
+        Both,
+        SoundOnly,
+        PopupOnly
+    }
+
+    protected override void OnInitialized()
+    {
+        ActiveWorkoutState.OnChange += HandleStateChanged;
+        _timer = new Timer(HandleTimerTick, null, 1000, 1000);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id is null)
+        {
+            _isEditMode = false;
+            _editingWorkoutId = null;
+            _editingWorkoutDurationMinutes = null;
+            return;
+        }
+
+        if (_editingWorkoutId == Id && _isEditMode)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            var workout = await WorkoutService.GetWorkoutDetailAsync(Id.Value);
+
+            if (workout is null)
+            {
+                _message = "Workout not found.";
+                _isError = true;
+                _isEditMode = false;
+                _editingWorkoutId = null;
+                ActiveWorkoutState.Clear();
+                return;
+            }
+
+            ActiveWorkoutState.LoadWorkoutForEditing(workout);
+            _isEditMode = true;
+            _editingWorkoutId = workout.Id;
+            _editingWorkoutDate = workout.Date;
+            _editingWorkoutDurationMinutes = workout.DurationMinutes;
+            _showCentralRestTimer = false;
+            _showGuestSignupPrompt = false;
+            _showInvalidWorkoutPopup = false;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _timerNotificationModeLoaded)
+        {
+            return;
+        }
+
+        _timerNotificationModeLoaded = true;
+        await LoadTimerNotificationModeAsync();
+    }
+
+    private void HandleStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async void HandleTimerTick(object? state)
+    {
+        _ = state;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ShowExercisePicker()
+    {
+        _message = null;
+        _isError = false;
+        _showExercisePicker = true;
+    }
+
+    private void HideExercisePicker()
+    {
+        _showExercisePicker = false;
+    }
+
+    private Task HandleExerciseSelected(ExerciseDto exercise)
+    {
+        ActiveWorkoutState.AddExercise(exercise);
+
+        _showExercisePicker = false;
+        return Task.CompletedTask;
+    }
+
+    private Task TriggerRestTimerAsync(int restSeconds)
+    {
+        if (_isEditMode)
+        {
+            return Task.CompletedTask;
+        }
+
+        TriggerRestTimer(restSeconds);
+        return Task.CompletedTask;
+    }
+
+    private void TriggerRestTimer(int restSeconds)
+    {
+        _centralRestSeconds = Math.Max(1, restSeconds);
+        _restTimerVersion++;
+        _showCentralRestTimer = true;
+    }
+
+    private async Task FinishWorkoutAsync()
+    {
+        if (_isEditMode && !ActiveWorkoutState.HasActiveWorkout)
+        {
+            _message = "A workout must contain at least one exercise.";
+            _isError = true;
+            return;
+        }
+
+        if (!ActiveWorkoutState.HasAnyValidSets())
+        {
+            if (_isEditMode)
+            {
+                _message = "A workout must contain at least one valid set.";
+                _isError = true;
+                return;
+            }
+
+            ActiveWorkoutState.Clear();
+            Navigation.NavigateTo("/workouts/log", replace: true);
+            return;
+        }
+
+        if (ActiveWorkoutState.HasInvalidSets())
+        {
+            _showInvalidWorkoutPopup = true;
+            return;
+        }
+
+        _isBusy = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            if (_isEditMode)
+            {
+                if (_editingWorkoutId is null)
+                {
+                    _message = "Could not determine which workout to update.";
+                    _isError = true;
+                    return;
+                }
+
+                var editWorkoutPayload = ActiveWorkoutState.ToCreateDto(_editingWorkoutDate, _editingWorkoutDurationMinutes);
+                var updatedWorkout = await WorkoutService.UpdateWorkoutAsync(_editingWorkoutId.Value, editWorkoutPayload);
+
+                if (updatedWorkout is null)
+                {
+                    _message = "Could not update the workout. Please try again.";
+                    _isError = true;
+                    return;
+                }
+
+                ActiveWorkoutState.Clear();
+                Navigation.NavigateTo($"/workout/{updatedWorkout.Id}");
+                return;
+            }
+
+            ActiveWorkoutState.CompleteWorkoutFinalSet();
+            var workoutToSave = ActiveWorkoutState.ToCreateDto();
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+            if (!isAuthenticated)
+            {
+                var completed = await WorkoutService.CompleteGuestWorkoutAsync(workoutToSave);
+
+                if (!completed)
+                {
+                    _message = "Could not complete the guest workout. Please try again.";
+                    _isError = true;
+                    return;
+                }
+
+                ActiveWorkoutState.Clear();
+                _showGuestSignupPrompt = true;
+                _message = null;
+                return;
+            }
+
+            var createdWorkout = await WorkoutService.CreateWorkoutAsync(workoutToSave);
+
+            if (createdWorkout is null)
+            {
+                _message = "Could not save the workout. Please try again.";
+                _isError = true;
+                return;
+            }
+
+            ActiveWorkoutState.Clear();
+            Navigation.NavigateTo($"/workout/{createdWorkout.Id}");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private Task CancelWorkoutAsync()
+    {
+        ActiveWorkoutState.Clear();
+        _showInvalidWorkoutPopup = false;
+        _showGuestSignupPrompt = false;
+        if (_isEditMode && _editingWorkoutId is not null)
+        {
+            Navigation.NavigateTo($"/workout/{_editingWorkoutId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/workouts/log", replace: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task GoToRegister()
+    {
+        _showGuestSignupPrompt = false;
+        Navigation.NavigateTo("/register");
+        return Task.CompletedTask;
+    }
+
+    private Task GoToLogin()
+    {
+        _showGuestSignupPrompt = false;
+        Navigation.NavigateTo("/login");
+        return Task.CompletedTask;
+    }
+
+    private Task CloseGuestPrompt()
+    {
+        _showGuestSignupPrompt = false;
+        return Task.CompletedTask;
+    }
+
+    private void DismissInvalidWorkoutPopup()
+    {
+        _showInvalidWorkoutPopup = false;
+    }
+
+    private string FormatElapsedTime()
+    {
+        if (_isEditMode)
+        {
+            return _editingWorkoutDurationMinutes.HasValue
+                ? FormatDurationAsElapsed(_editingWorkoutDurationMinutes.Value)
+                : "—";
+        }
+
+        if (!ActiveWorkoutState.HasActiveWorkout)
+        {
+            return "00:00:00";
+        }
+
+        var elapsed = DateTime.UtcNow - ActiveWorkoutState.StartTime;
+        return $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private static string FormatDurationAsElapsed(int minutes)
+    {
+        var elapsed = TimeSpan.FromMinutes(minutes);
+        return $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private async Task PersistTimerNotificationModeAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("localStorage.setItem", TimerNotificationModeStorageKey, _timerNotificationMode.ToString());
+        }
+        catch (JSException)
+        {
+            // Ignore storage errors to avoid blocking workout logging.
+        }
+    }
+
+    private async Task LoadTimerNotificationModeAsync()
+    {
+        try
+        {
+            var storedMode = await Js.InvokeAsync<string?>("localStorage.getItem", TimerNotificationModeStorageKey);
+
+            if (string.IsNullOrWhiteSpace(storedMode))
+            {
+                return;
+            }
+
+            if (Enum.TryParse<TimerNotificationMode>(storedMode, ignoreCase: true, out var parsedMode))
+            {
+                _timerNotificationMode = parsedMode;
+                await SafeRefreshAsync();
+            }
+        }
+        catch (JSException)
+        {
+            // Ignore storage errors to avoid blocking workout logging.
+        }
+    }
+
+    private Task SafeRefreshAsync() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ActiveWorkoutState.OnChange -= HandleStateChanged;
+        _timer?.Dispose();
+    }
+
+}

@@ -1,0 +1,127 @@
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Conversation
+@inject ChatHistoryState ChatHistoryState
+@implements IDisposable
+
+<div class="conversation-list-panel">
+    <div class="conversation-list-header">
+        <div>
+            <div class="conversation-list-title">Conversations</div>
+            <div class="conversation-list-subtitle">Your recent chats</div>
+        </div>
+        <button class="new-chat-button" @onclick="StartNewConversation">New</button>
+    </div>
+
+    <div class="conversation-search">
+        <input class="conversation-search-input" placeholder="Search..." @bind="SearchTerm" @bind:event="oninput" />
+    </div>
+
+    <div class="conversation-items">
+        @if (!FilteredConversations.Any())
+        {
+            <div class="conversation-empty">No conversations yet.</div>
+        }
+        else
+        {
+            foreach (var conversation in FilteredConversations)
+            {
+                <div class="conversation-item @(conversation.Id == SelectedConversationId ? "is-active" : "")">
+                    <button class="conversation-item-select" @onclick="() => SelectConversation(conversation)">
+                        <div class="conversation-item-title">@conversation.Title</div>
+                        <div class="conversation-item-meta">@conversation.LastMessageAt.ToString("MMM dd")</div>
+                    </button>
+                    <button class="conversation-item-delete"
+                            @onclick="() => PromptDelete(conversation)"
+                            @onclick:stopPropagation="true"
+                            aria-label="Delete conversation">
+                        <i class="bi bi-trash" aria-hidden="true"></i>
+                    </button>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (pendingDelete is not null)
+{
+    <div class="conversation-confirm-backdrop" @onclick="CancelDelete">
+        <section class="conversation-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="deleteConversationTitle" @onclick:stopPropagation="true">
+            <h3 id="deleteConversationTitle">Delete conversation?</h3>
+            <p>"@pendingDelete.Title" will be removed permanently.</p>
+            <div class="conversation-modal-actions">
+                <button class="btn btn-outline-secondary" @onclick="CancelDelete">Cancel</button>
+                <button class="btn btn-danger" @onclick="ConfirmDeleteAsync">Delete</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    private ChatConversationDto? pendingDelete;
+    private string _searchTerm = string.Empty;
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            _searchTerm = value;
+            ChatHistoryState.SetSearchTerm(_searchTerm);
+        }
+    }
+
+    private int? SelectedConversationId => ChatHistoryState.SelectedConversationId;
+    private IEnumerable<ChatConversationDto> FilteredConversations => ChatHistoryState.FilteredConversations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatHistoryState.ConversationsChanged += OnConversationsChanged;
+        await ChatHistoryState.LoadConversationsAsync();
+    }
+
+    private void OnConversationsChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectConversation(ChatConversationDto conversation)
+    {
+        await ChatHistoryState.SetSelectedConversationAsync(conversation.Id);
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task StartNewConversation()
+    {
+        ChatHistoryState.StartNewConversation();
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private void PromptDelete(ChatConversationDto conversation)
+    {
+        pendingDelete = conversation;
+    }
+
+    private void CancelDelete()
+    {
+        pendingDelete = null;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (pendingDelete is null)
+        {
+            return;
+        }
+
+        var conversationId = pendingDelete.Id;
+        pendingDelete = null;
+        await ChatHistoryState.DeleteConversationAsync(conversationId);
+    }
+
+    public void Dispose()
+    {
+        ChatHistoryState.ConversationsChanged -= OnConversationsChanged;
+    }
+}

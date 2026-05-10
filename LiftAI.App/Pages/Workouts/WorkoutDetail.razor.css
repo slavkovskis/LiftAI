@@ -1,0 +1,47 @@
+.workout-detail-page {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.workout-detail-page__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.3rem;
+}
+
+.workout-detail-page__back {
+    display: inline-flex;
+    margin-top: 0.35rem;
+    color: var(--app-accent-strong);
+    text-decoration: none;
+}
+
+.workout-detail-summary {
+    border-radius: 1.2rem;
+    box-shadow: var(--app-shadow-soft);
+}
+
+.workout-detail-card {
+    border-radius: 1.1rem;
+    box-shadow: var(--app-shadow-soft);
+}
+
+.workout-detail-card__sets {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.workout-detail-page__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+    .workout-detail-page__header {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+

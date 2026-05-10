@@ -1,0 +1,31 @@
+.workout-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    background: rgba(34, 27, 18, 0.48);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.workout-modal-panel {
+    width: min(100%, 720px);
+    max-height: min(80vh, 900px);
+    overflow: auto;
+    background: var(--app-card);
+    border: 1px solid var(--app-border);
+    border-radius: 1.2rem;
+    box-shadow: var(--app-shadow);
+    padding: 1.25rem;
+}
+
+@media (min-width: 768px) {
+    .workout-modal-backdrop {
+        align-items: center;
+    }
+
+    .workout-modal-panel {
+        border-radius: 1rem;
+    }
+}

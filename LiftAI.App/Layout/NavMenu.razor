@@ -1,0 +1,220 @@
+﻿@using LiftAI.App.Auth
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@implements IDisposable
+@inject JwtAuthenticationStateProvider AuthProvider
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<aside class="app-nav-desktop">
+    <a class="app-brand" href="/">
+        <img src="images/liftai-logo.svg" alt="LiftAI" class="app-brand__logo" />
+    </a>
+
+    <nav class="app-nav-links">
+        <NavLink class="app-nav-link" href="/" Match="NavLinkMatch.All">
+            <span class="app-nav-link__icon" aria-hidden="true">
+                <i class="bi bi-house-door"></i>
+            </span>
+            <span>Home</span>
+        </NavLink>
+        <NavLink class="app-nav-link" href="/chat" Match="NavLinkMatch.Prefix">
+            <span class="app-nav-link__icon" aria-hidden="true">
+                <i class="bi bi-chat-left-text"></i>
+            </span>
+            <span>Chat</span>
+        </NavLink>
+        <NavLink class="app-nav-link" href="/workouts/log" Match="NavLinkMatch.Prefix">
+            <span class="app-nav-link__icon" aria-hidden="true">
+                <i class="bi bi-play-circle"></i>
+            </span>
+            <span>Start Workout</span>
+        </NavLink>
+        <NavLink class="app-nav-link" href="/workouts" Match="NavLinkMatch.Prefix">
+            <span class="app-nav-link__icon" aria-hidden="true">
+                <i class="bi bi-clock-history"></i>
+            </span>
+            <span>Workout History</span>
+        </NavLink>
+        <NavLink class="app-nav-link" href="/exercises" Match="NavLinkMatch.Prefix">
+            <span class="app-nav-link__icon" aria-hidden="true">
+                <i class="bi bi-clipboard-pulse"></i>
+            </span>
+            <span>Exercises</span>
+        </NavLink>
+    </nav>
+
+    <div class="app-nav-footer">
+        @if (_isAuthenticated)
+        {
+            <button type="button" class="btn btn-outline-secondary w-100" @onclick="LogoutAsync">Logout</button>
+        }
+        else
+        {
+            <div class="d-grid gap-2">
+                <a href="/login" class="btn btn-primary">Login</a>
+                <a href="/register" class="btn btn-outline-secondary">Register</a>
+            </div>
+        }
+    </div>
+ </aside>
+
+<header class="app-nav-mobile-top">
+    <a class="app-brand app-brand--mobile" href="/">
+        <img src="images/liftai-logo.svg" alt="LiftAI" class="app-brand__logo" />
+    </a>
+
+    <button type="button" class="app-nav-mobile-toggle" @onclick="ToggleNavMenu" aria-label="Open menu">
+        <span class="app-nav-mobile-toggle__icon app-nav-mobile-toggle__icon--profile" aria-hidden="true">
+            <i class="bi bi-person-circle"></i>
+        </span>
+        <span class="app-nav-mobile-toggle__label app-nav-username" title="@_userDisplayName">@_userDisplayName</span>
+    </button>
+</header>
+
+<div class="app-nav-mobile-drawer @NavMenuCssClass" @onclick="ToggleNavMenu">
+    <section class="app-nav-mobile-panel" @onclick:stopPropagation="true">
+        <div class="app-nav-account">
+            <div class="app-nav-account__header">
+                <span class="app-nav-account__icon" aria-hidden="true">
+                    <i class="bi bi-person"></i>
+                </span>
+                <div>
+                    <div class="app-nav-account__title app-nav-username" title="@_userDisplayName">@_userDisplayName</div>
+                    <div class="app-nav-account__subtitle">
+                        @if (_isAuthenticated)
+                        {
+                            <span>Signed in</span>
+                        }
+                        else
+                        {
+                            <span>Sign in to sync workouts</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-nav-account__actions">
+                @if (_isAuthenticated)
+                {
+                    <button type="button" class="btn btn-outline-secondary w-100" @onclick="LogoutAsync">Logout</button>
+                }
+                else
+                {
+                    <a href="/login" class="btn btn-primary" @onclick="CloseNavMenu">Login</a>
+                    <a href="/register" class="btn btn-outline-secondary" @onclick="CloseNavMenu">Register</a>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+<nav class="app-nav-mobile-bottom">
+    <NavLink class="app-nav-tab" href="/" Match="NavLinkMatch.All" aria-label="Home">
+        <span class="app-nav-tab__icon" aria-hidden="true">
+            <i class="bi bi-house-door"></i>
+        </span>
+        <span class="sr-only">Home</span>
+    </NavLink>
+    <NavLink class="app-nav-tab" href="/chat" Match="NavLinkMatch.Prefix" aria-label="Chat">
+        <span class="app-nav-tab__icon" aria-hidden="true">
+            <i class="bi bi-chat-left-text"></i>
+        </span>
+        <span class="sr-only">Chat</span>
+    </NavLink>
+    <NavLink class="app-nav-tab" href="/workouts/log" Match="NavLinkMatch.Prefix" aria-label="Start workout">
+        <span class="app-nav-tab__icon" aria-hidden="true">
+            <i class="bi bi-play-circle"></i>
+        </span>
+        <span class="sr-only">Start workout</span>
+    </NavLink>
+    <NavLink class="app-nav-tab" href="/workouts" Match="NavLinkMatch.Prefix" aria-label="Workout history">
+        <span class="app-nav-tab__icon" aria-hidden="true">
+            <i class="bi bi-clock-history"></i>
+        </span>
+        <span class="sr-only">Workout history</span>
+    </NavLink>
+    <NavLink class="app-nav-tab" href="/exercises" Match="NavLinkMatch.Prefix" aria-label="Exercises">
+        <span class="app-nav-tab__icon" aria-hidden="true">
+            <i class="bi bi-clipboard-pulse"></i>
+        </span>
+        <span class="sr-only">Exercises</span>
+    </NavLink>
+</nav>
+
+@code {
+    private bool _collapseNavMenu = true;
+    private bool _isAuthenticated;
+    private string _userDisplayName = "Guest";
+
+    private string NavMenuCssClass => _collapseNavMenu ? "is-closed" : "is-open";
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+        await UpdateAuthStateAsync();
+    }
+
+    private void ToggleNavMenu()
+    {
+        _collapseNavMenu = !_collapseNavMenu;
+    }
+
+    private void CloseNavMenu()
+    {
+        _collapseNavMenu = true;
+    }
+
+    private async Task LogoutAsync()
+    {
+        await AuthProvider.MarkUserAsLoggedOut();
+        _collapseNavMenu = true;
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void HandleAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        _ = UpdateAuthStateFromTaskAsync(authenticationStateTask);
+    }
+
+    private async Task UpdateAuthStateFromTaskAsync(Task<AuthenticationState> authenticationStateTask)
+    {
+        var authState = await authenticationStateTask;
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        _userDisplayName = ResolveDisplayName(authState.User);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UpdateAuthStateAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        _userDisplayName = ResolveDisplayName(authState.User);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string ResolveDisplayName(ClaimsPrincipal user)
+    {
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            return "Guest";
+        }
+
+        var name = user.Identity?.Name;
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            name = user.FindFirst("name")?.Value
+                   ?? user.FindFirst(ClaimTypes.Name)?.Value
+                   ?? user.FindFirst(ClaimTypes.Email)?.Value
+                   ?? user.FindFirst("email")?.Value;
+        }
+
+        return string.IsNullOrWhiteSpace(name) ? "User" : name;
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+}

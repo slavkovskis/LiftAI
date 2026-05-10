@@ -1,0 +1,250 @@
+html, body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: linear-gradient(180deg, #fbf4ea 0%, #f4e7d7 100%);
+    color: #3b2f24;
+}
+
+:root {
+    --app-logo-dumbbell: #ffe4c4;
+    --app-logo-arm: #edc9af;
+    --app-logo-arm-inner: #f0c19f;
+
+    --app-bg: #fbf4ea;
+    --app-card: #fff7ec;
+    --app-chip: #f4e1cf;
+    --app-border: #e2cfba;
+    --app-border-strong: #c9ab8d;
+    --app-text: #3b2f24;
+    --app-text-soft: #6f5c4b;
+    --app-accent: #d6a377;
+    --app-accent-strong: #7d5f3f;
+    --app-accent-glow: rgba(214, 163, 119, 0.32);
+    --app-shadow: 0 18px 40px rgba(89, 68, 45, 0.12);
+    --app-shadow-soft: 0 10px 24px rgba(89, 68, 45, 0.08);
+    --app-radius-lg: 1.2rem;
+    --app-radius-md: 0.95rem;
+    --app-radius-sm: 0.7rem;
+    --app-motion-fast: 140ms ease;
+    --app-motion: 220ms ease;
+    --app-motion-slow: 360ms ease;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+h1:focus {
+    outline: none;
+}
+
+a, .btn-link {
+    color: var(--app-accent-strong);
+}
+
+a:hover {
+    color: #6b5136;
+}
+
+.btn-primary {
+    color: #fff;
+    background-color: var(--app-accent);
+    border-color: var(--app-accent);
+    box-shadow: 0 10px 20px rgba(125, 95, 63, 0.2);
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--app-accent-strong) !important;
+    border-color: var(--app-accent-strong) !important;
+}
+
+.btn-outline-primary {
+    color: var(--app-accent-strong);
+    border-color: var(--app-accent);
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+    color: #fff !important;
+    background-color: var(--app-accent-strong) !important;
+    border-color: var(--app-accent-strong) !important;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem #fff7ec, 0 0 0 0.28rem rgba(214, 163, 119, 0.35);
+}
+
+.btn, .form-control, .form-select, .card {
+    transition: transform var(--app-motion), box-shadow var(--app-motion), border-color var(--app-motion), background-color var(--app-motion);
+}
+
+.card {
+    border-radius: var(--app-radius-md);
+    border-color: var(--app-border);
+    background: var(--app-card);
+    box-shadow: var(--app-shadow-soft);
+}
+
+.badge {
+    border-radius: 999px;
+}
+
+.text-muted {
+    color: var(--app-text-soft) !important;
+}
+
+.form-control, .form-select {
+    border-radius: 0.85rem;
+    border-color: var(--app-border-strong);
+    background: #fdf7f0;
+    color: var(--app-text);
+}
+
+.form-control::placeholder {
+    color: #907b68;
+}
+
+.btn-outline-secondary {
+    color: var(--app-text);
+    border-color: var(--app-border-strong);
+    background: #f7eadc;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--app-logo-arm);
+    border-color: var(--app-border-strong);
+}
+
+@keyframes fade-rise {
+    0% {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+.content {
+    padding-top: 1.1rem;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #6d9a68;
+}
+
+.invalid {
+    outline: 1px solid red;
+}
+
+.validation-message {
+    color: #9f3434;
+}
+
+#blazor-error-ui {
+    color-scheme: light only;
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.blazor-error-boundary {
+    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
+    padding: 1rem 1rem 1rem 3.7rem;
+    color: white;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
+
+.loading-progress {
+    position: absolute;
+    display: block;
+    width: 8rem;
+    height: 8rem;
+    inset: 20vh 0 auto 0;
+    margin: 0 auto 0 auto;
+}
+
+.loading-progress circle {
+    fill: none;
+    stroke: #e0e0e0;
+    stroke-width: 0.6rem;
+    transform-origin: 50% 50%;
+    transform: rotate(-90deg);
+}
+
+.loading-progress circle:last-child {
+    stroke: #1b6ec2;
+    stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
+    transition: stroke-dasharray 0.05s ease-in-out;
+}
+
+.loading-progress-text {
+    position: absolute;
+    text-align: center;
+    font-weight: bold;
+    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
+}
+
+.loading-progress-text:after {
+    content: var(--blazor-load-percentage-text, "Loading");
+}
+
+code {
+    color: #8e4c34;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+body.chat-lock {
+    overflow: hidden;
+}
+
+/* === Mobile fixed-fit pages ===
+   Pages that pin themselves directly to the viewport (chat, empty workout
+   logger) use position: fixed in their own scoped CSS so they're
+   independent of the surrounding app-shell. We lock body scroll on those
+   pages so the parent layout (app-shell, app-shell__main) can't create a
+   scrollable page underneath. */
+@media (max-width: 960px) {
+    body:has(.chat-shell),
+    body:has(.workout-page--empty) {
+        overflow: hidden;
+    }
+}

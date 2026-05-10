@@ -1,0 +1,230 @@
+@page "/workouts"
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Workout
+@inject WorkoutService WorkoutService
+@inject NavigationManager Navigation
+
+<PageTitle>Workout History</PageTitle>
+
+<section class="history-page">
+    <header class="history-page__header">
+        <div>
+            <h1 class="h3 mb-1">Workout History</h1>
+            <p class="text-muted mb-0">Review your past sessions and jump back in quickly.</p>
+        </div>
+    </header>
+
+    @if (_isLoading)
+    {
+        <p class="text-muted">Loading workouts...</p>
+    }
+    else if (_workouts.Count == 0)
+    {
+        <p class="text-muted">No workouts found.</p>
+    }
+    else
+    {
+        <div class="history-table">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Exercises</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var workout in _workouts)
+                    {
+                        var workoutId = workout.Id;
+                        var muscleGroups = GetMuscleGroups(workoutId);
+
+                        <tr style="cursor: pointer;" @onclick="() => OpenWorkoutAsync(workoutId)">
+                            <td>
+                                <div class="history-date-group">
+                                    <span class="history-date-group__date">@FormatWorkoutDate(workout.Date)</span>
+
+                                    @if (muscleGroups.Count > 0)
+                                    {
+                                        <div class="history-date-group__chips" aria-label="Muscle groups trained">
+                                            @foreach (var muscleGroup in muscleGroups)
+                                            {
+                                                <span class="history-date-group__chip">@muscleGroup</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </td>
+                            <td>@GetExerciseCountText(workoutId)</td>
+                            <td>@FormatDuration(workout.DurationMinutes)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="history-cards">
+            @foreach (var workout in _workouts)
+            {
+                var workoutId = workout.Id;
+                var muscleGroups = GetMuscleGroups(workoutId);
+
+                <button type="button" class="history-card" @onclick="() => OpenWorkoutAsync(workoutId)">
+                    <div class="history-card__date-wrap">
+                        <div class="history-card__date">@FormatWorkoutDate(workout.Date)</div>
+
+                        @if (muscleGroups.Count > 0)
+                        {
+                            <div class="history-card__chips" aria-label="Muscle groups trained">
+                                @foreach (var muscleGroup in muscleGroups)
+                                {
+                                    <span class="history-card__chip">@muscleGroup</span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="history-card__meta">
+                        <span>@GetExerciseCountText(workoutId) exercises</span>
+                        <span>@FormatDuration(workout.DurationMinutes)</span>
+                    </div>
+                    <div class="history-card__cta">View workout</div>
+                </button>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<WorkoutDto> _workouts = new();
+    private readonly Dictionary<int, int?> _exerciseCounts = new();
+    private readonly Dictionary<int, IReadOnlyList<string>> _muscleGroups = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkoutsAsync();
+    }
+
+    private async Task LoadWorkoutsAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            _workouts = await WorkoutService.GetAllWorkoutsAsync();
+            _exerciseCounts.Clear();
+            _muscleGroups.Clear();
+
+            foreach (var workout in _workouts)
+            {
+                var detail = await WorkoutService.GetWorkoutDetailAsync(workout.Id);
+                _exerciseCounts[workout.Id] = detail?.Exercises.Count;
+                _muscleGroups[workout.Id] = GetMuscleGroups(detail);
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private Task OpenWorkoutAsync(int workoutId)
+    {
+        Navigation.NavigateTo($"/workout/{workoutId}");
+        return Task.CompletedTask;
+    }
+
+    private string GetExerciseCountText(int workoutId)
+    {
+        if (_exerciseCounts.TryGetValue(workoutId, out var count) && count.HasValue)
+        {
+            return count.Value.ToString();
+        }
+
+        return "—";
+    }
+
+    private static string FormatDuration(int? durationMinutes)
+    {
+        return durationMinutes.HasValue
+            ? $"{durationMinutes.Value} min"
+            : "—";
+    }
+
+    private IReadOnlyList<string> GetMuscleGroups(int workoutId)
+    {
+        return _muscleGroups.TryGetValue(workoutId, out var groups)
+            ? groups
+            : Array.Empty<string>();
+    }
+
+    private static IReadOnlyList<string> GetMuscleGroups(WorkoutDetailDto? detail)
+    {
+        if (detail is null || detail.Exercises.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var groups = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var muscleGroup in detail.Exercises.Select(exercise => exercise.MuscleGroup))
+        {
+            var normalizedGroup = muscleGroup.Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedGroup) || !seen.Add(normalizedGroup))
+            {
+                continue;
+            }
+
+            groups.Add(ToDisplayGroup(normalizedGroup));
+        }
+
+        return groups;
+    }
+
+    private static string ToDisplayGroup(string value)
+    {
+        if (value.Length == 0)
+        {
+            return value;
+        }
+
+        var words = value.Replace('-', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return string.Join(' ', words.Select(word =>
+        {
+            if (word.Length == 1)
+            {
+                return word.ToUpperInvariant();
+            }
+
+            return char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant();
+        }));
+    }
+
+    private static string FormatWorkoutDate(DateTime date)
+    {
+        var day = date.Day;
+        var suffix = GetOrdinalSuffix(day);
+
+        return $"{date:yyyy} {day}{suffix} {date:MMMM}";
+    }
+
+    private static string GetOrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
+}

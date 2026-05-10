@@ -1,0 +1,278 @@
+@using System.Globalization
+@implements IDisposable
+@inject IJSRuntime Js
+
+<div class="rest-timer">
+    <div class="rest-timer__ring"
+         style="--progress:@ProgressPercentInvariant;">
+        <div class="rest-timer__time">
+            @FormatTime(_remaining)
+        </div>
+    </div>
+
+    <div class="rest-timer__actions">
+        <div class="fw-semibold">Rest Timer</div>
+        <div class="text-muted small">
+            @( _running ? "Timer running" : "Timer paused" )
+        </div>
+
+        <div class="btn-group mt-2">
+            <button type="button"
+                    class="btn btn-sm btn-primary"
+                    @onclick="StartAsync"
+                    disabled="@_running">
+                @StartButtonLabel
+            </button>
+
+            <button type="button"
+                    class="btn btn-sm btn-outline-warning"
+                    @onclick="PauseAsync"
+                    disabled="@(!_running)">
+                Pause
+            </button>
+
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    @onclick="ResetAsync">
+                Reset
+            </button>
+        </div>
+
+    </div>
+</div>
+
+@if (_showCompletionPopup)
+{
+    <div class="rest-timer__notification"
+         aria-live="assertive"
+         aria-atomic="true">
+        <div class="rest-timer__popup alert alert-success alert-dismissible fade show"
+             role="alert">
+            <span>@CompletionMessage</span>
+            <button type="button"
+                    class="btn-close"
+                    aria-label="Close"
+                    @onclick="DismissCompletionPopup">
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int TotalSeconds { get; set; } = 120;
+
+    [Parameter]
+    public bool AutoStart { get; set; }
+
+    [Parameter]
+    public bool EnableSound { get; set; } = true;
+
+    [Parameter]
+    public bool EnablePopup { get; set; } = true;
+
+    [Parameter]
+    public string CompletionMessage { get; set; } = "Rest timer complete. Ready for your next set.";
+
+    private int _remaining;
+    private bool _running;
+    private bool _hasStarted;
+    private bool _autoStartArmed;
+    private bool _disposed;
+    private bool _showCompletionPopup;
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        _remaining = EffectiveTotalSeconds;
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_remaining <= 0)
+        {
+            _remaining = EffectiveTotalSeconds;
+        }
+
+        if (AutoStart && !_autoStartArmed)
+        {
+            _autoStartArmed = true;
+            _ = StartAsync();
+        }
+        else if (!AutoStart)
+        {
+            _autoStartArmed = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private int EffectiveTotalSeconds => Math.Max(1, TotalSeconds);
+
+    private string StartButtonLabel => _hasStarted && !_running && _remaining > 0
+        ? "Resume"
+        : "Start";
+
+    private string ProgressPercentInvariant
+    {
+        get
+        {
+            var total = EffectiveTotalSeconds;
+            var completed = total - _remaining;
+            var percent = Math.Clamp((double)completed / total * 100d, 0d, 100d);
+
+            return percent.ToString("0.##", CultureInfo.InvariantCulture);
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        if (_running)
+        {
+            return;
+        }
+
+        if (_remaining <= 0)
+        {
+            _remaining = EffectiveTotalSeconds;
+        }
+
+        _cts = new CancellationTokenSource();
+        _running = true;
+        _hasStarted = true;
+        _showCompletionPopup = false;
+        _ = RunTimerAsync(_cts.Token);
+
+        await PrimeAudioAsync();
+
+        await SafeRefreshAsync();
+    }
+
+    private async Task RunTimerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _remaining > 0)
+            {
+                await Task.Delay(1000, cancellationToken);
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                _remaining = Math.Max(0, _remaining - 1);
+
+                await SafeRefreshAsync();
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // Expected when paused or reset.
+        }
+        finally
+        {
+            _running = false;
+
+            if (_remaining == 0)
+            {
+                _autoStartArmed = false;
+                await NotifyTimerEndedAsync();
+            }
+
+            await SafeRefreshAsync();
+        }
+    }
+
+    private Task PauseAsync()
+    {
+        if (!_running)
+        {
+            return Task.CompletedTask;
+        }
+
+        _cts?.Cancel();
+        return SafeRefreshAsync();
+    }
+
+    private async Task ResetAsync()
+    {
+        _cts?.Cancel();
+
+        _remaining = EffectiveTotalSeconds;
+        _running = false;
+        _hasStarted = false;
+        _autoStartArmed = false;
+        _showCompletionPopup = false;
+
+        await SafeRefreshAsync();
+    }
+
+    private Task DismissCompletionPopup()
+    {
+        _showCompletionPopup = false;
+        return SafeRefreshAsync();
+    }
+
+    private async Task NotifyTimerEndedAsync()
+    {
+        if (EnablePopup)
+        {
+            _showCompletionPopup = true;
+        }
+
+        if (!EnableSound)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(() => Js.InvokeVoidAsync("liftAiTimerNotifications.playDoneTone").AsTask());
+        }
+        catch (JSException)
+        {
+            // Ignore if audio cannot be played in the current browser context.
+        }
+    }
+
+    private async Task PrimeAudioAsync()
+    {
+        if (!EnableSound)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(() => Js.InvokeVoidAsync("liftAiTimerNotifications.primeAudio").AsTask());
+        }
+        catch (JSException)
+        {
+            // Ignore if browser blocks audio priming.
+        }
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var safeSeconds = Math.Max(0, totalSeconds);
+        var minutes = safeSeconds / 60;
+        var seconds = safeSeconds % 60;
+
+        return $"{minutes:00}:{seconds:00}";
+    }
+
+    private Task SafeRefreshAsync()
+    {
+        return _disposed
+            ? Task.CompletedTask
+            : InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

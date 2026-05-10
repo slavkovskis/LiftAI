@@ -1,0 +1,33 @@
+.app-shell {
+    min-height: 100vh;
+    background: var(--app-bg);
+}
+
+.app-shellmain {
+    min-height: 100vh;
+    padding: 0 0.5rem;
+}
+
+.app-shellcontent {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.2rem 0.6rem 5.6rem;
+    animation: fade-rise 0.45s ease;
+}
+
+@media (max-width: 960px) {
+    .app-shellmain {
+        min-height: calc(100dvh - 4rem);
+    }
+}
+
+@media (min-width: 992px) {
+    .app-shell {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+    }
+
+    .app-shell__content {
+        padding: 1.6rem 1.8rem 2rem;
+    }
+}

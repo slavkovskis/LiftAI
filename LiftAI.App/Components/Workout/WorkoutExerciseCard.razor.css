@@ -1,0 +1,62 @@
+.exercise-card {
+    border-color: var(--app-border);
+    background: var(--app-card);
+    border-radius: 1.1rem;
+    box-shadow: var(--app-shadow-soft);
+}
+
+.exercise-card__toggle {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    color: inherit;
+}
+
+.exercise-card__toggle:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.exercise-card__toggle:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.exercise-card__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.exercise-card__set-count {
+    font-size: 0.92rem;
+}
+
+.exercise-card__chevron {
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.exercise-card__actions .btn {
+    min-width: 6.5rem;
+}
+
+.exercise-card ::deep(label.form-label) {
+    color: var(--app-text-soft);
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .exercise-card__actions {
+        width: 100%;
+    }
+
+    .exercise-card__actions .btn {
+        flex: 1;
+    }
+}
+
+
+
+

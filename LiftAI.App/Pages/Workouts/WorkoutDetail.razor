@@ -1,0 +1,251 @@
+@page "/workout/{Id:int}"
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Workout
+@inject WorkoutService WorkoutService
+@inject NavigationManager Navigation
+
+<PageTitle>Workout Detail</PageTitle>
+
+<section class="workout-detail-page">
+    <header class="workout-detail-page__header">
+        <div>
+            <h1 class="h3 mb-1">Workout Detail</h1>
+            <a class="workout-detail-page__back" href="/workouts">Back to history</a>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @(_isError ? "alert-danger" : "alert-success")">
+            @_message
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <p class="text-muted">Loading workout...</p>
+    }
+    else if (_workout is null)
+    {
+        <p class="text-muted">Workout not found.</p>
+    }
+    else
+    {
+        <div class="workout-detail-summary card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                    <div>
+                        <h4 class="mb-2">@FormatWorkoutDate(_workout.Date)</h4>
+
+                        @if (!string.IsNullOrWhiteSpace(_workout.Notes))
+                        {
+                            <p class="mb-1"><strong>Notes:</strong> @_workout.Notes</p>
+                        }
+
+                        <p class="mb-0">
+                            <strong>Duration:</strong> @(_workout.DurationMinutes.HasValue ? $"{_workout.DurationMinutes.Value} min" : "—")
+                        </p>
+                    </div>
+
+                    <div class="workout-detail-page__actions">
+                        <button type="button" class="btn btn-outline-primary" @onclick="EditInLogger" disabled="@_isDeleting">
+                            Edit workout
+                        </button>
+
+                        <button type="button" class="btn btn-outline-danger" @onclick="RequestDelete" disabled="@_isDeleting">
+                            Delete workout
+                        </button>
+                    </div>
+                </div>
+
+                @if (_showDeleteConfirm)
+                {
+                    <div class="alert alert-warning mt-3 mb-0 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                        <div>
+                            <strong>Delete this workout?</strong>
+                            <div class="small">This will permanently remove the workout and all its exercises and sets.</div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_isDeleting">
+                                @(_isDeleting ? "Deleting..." : "Yes, delete")
+                            </button>
+
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelDelete" disabled="@_isDeleting">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (_workout.Exercises.Count == 0)
+        {
+            <p class="text-muted">No exercises were recorded for this workout.</p>
+        }
+        else
+        {
+            @foreach (var exercise in _workout.Exercises)
+            {
+                <article class="card workout-detail-card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-1">@exercise.ExerciseName</h5>
+                        <div class="text-muted mb-2">@exercise.MuscleGroup</div>
+
+                        @if (!string.IsNullOrWhiteSpace(exercise.Notes))
+                        {
+                            <p class="mb-3"><em>@exercise.Notes</em></p>
+                        }
+
+                        <h6>Sets</h6>
+
+                        @if (exercise.Sets.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No sets recorded.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0 workout-detail-card__sets">
+                                @foreach (var set in exercise.Sets)
+                                {
+                                    <li>Set @set.SetNumber: @FormatSet(set)</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </article>
+            }
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private WorkoutDetailDto? _workout;
+    private bool _isLoading = true;
+    private bool _isDeleting;
+    private bool _showDeleteConfirm;
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadWorkoutAsync();
+    }
+
+    private async Task LoadWorkoutAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            _workout = await WorkoutService.GetWorkoutDetailAsync(Id);
+            _showDeleteConfirm = false;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void EditInLogger()
+    {
+        Navigation.NavigateTo($"/workouts/log/{Id}");
+    }
+
+    private void RequestDelete()
+    {
+        _message = null;
+        _isError = false;
+        _showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        _showDeleteConfirm = false;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+
+        try
+        {
+            var deleted = await WorkoutService.DeleteWorkoutAsync(Id);
+
+            if (!deleted)
+            {
+                _message = "Could not delete workout. Please try again.";
+                _isError = true;
+                return;
+            }
+
+            Navigation.NavigateTo("/workouts");
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private static string FormatSet(ExerciseSetDetailDto set)
+    {
+        var parts = new List<string>();
+
+        if (set.Reps.HasValue)
+        {
+            parts.Add($"{set.Reps.Value} reps");
+        }
+
+        if (set.DurationSeconds.HasValue)
+        {
+            parts.Add($"{set.DurationSeconds.Value}s");
+        }
+
+        parts.Add($"{set.Weight:0.##} kg");
+
+        if (set.RIR.HasValue)
+        {
+            parts.Add($"RIR {set.RIR.Value}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(set.Notes))
+        {
+            parts.Add(set.Notes);
+        }
+
+        return string.Join(" • ", parts);
+    }
+
+    private static string FormatWorkoutDate(DateTime date)
+    {
+        var day = date.Day;
+        var suffix = GetOrdinalSuffix(day);
+
+        return $"{date:yyyy} {day}{suffix} {date:MMMM}";
+    }
+
+    private static string GetOrdinalSuffix(int day)
+    {
+        if (day is 11 or 12 or 13)
+        {
+            return "th";
+        }
+
+        return (day % 10) switch
+        {
+            1 => "st",
+            2 => "nd",
+            3 => "rd",
+            _ => "th"
+        };
+    }
+}

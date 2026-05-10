@@ -1,0 +1,363 @@
+@page "/chat"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@attribute [Authorize]
+@using LiftAI.App.Components.Chat
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Chat
+@using LiftAI.Shared.Models.Dtos.Conversation
+@using LiftAI.Shared.Models.Enums
+@inject ChatService ChatService
+@inject ChatHistoryState ChatHistoryState
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>AI Chat</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="chat-shell">
+            <aside class="chat-panel @(isPanelOpen ? "is-open" : "")">
+                <ConversationList IsVisible="isPanelOpen" IsVisibleChanged="TogglePanel" />
+                <div class="chat-panel__footer">
+                    <button type="button" class="chat-new-button chat-icon-button" @onclick="StartNewConversation" aria-label="New conversation">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>New</span>
+                    </button>
+                </div>
+            </aside>
+            <div class="chat-overlay @(isPanelOpen ? "is-visible" : "")" @onclick="ClosePanel"></div>
+
+            <section class="chat-main">
+                <div class="chat-toolbar">
+                    <button type="button" class="chat-panel-toggle chat-icon-button" @onclick="TogglePanel" aria-label="Toggle conversations">
+                        <i class="bi bi-chat-dots" aria-hidden="true"></i>
+                        <span>Chats</span>
+                    </button>
+
+                    <div class="chat-effort">
+                        <button type="button"
+                                class="effort-toggle chat-icon-button"
+                                aria-expanded="@isEffortMenuOpen"
+                                @onclick="ToggleEffortMenu">
+                            <i class="bi @ModeIcon effort-toggle__icon" aria-hidden="true"></i>
+                            <span class="effort-toggle__label">
+                                <span>@EffortLabel</span>
+                                <i class="bi bi-chevron-down effort-toggle__caret" aria-hidden="true"></i>
+                            </span>
+                        </button>
+
+                        <div class="effort-menu @(isEffortMenuOpen ? "is-open" : "")" role="menu">
+                            <button type="button"
+                                    class="effort-option @(contextMode == ContextMode.Normal ? "is-active" : "")"
+                                    @onclick="() => SetContextMode(ContextMode.Normal)">
+                                <span class="effort-option__icon" aria-hidden="true">
+                                    <i class="bi bi-lightning-charge-fill"></i>
+                                </span>
+                                <span class="effort-option__body">
+                                    <span class="effort-option__title">
+                                        <span>Normal</span>
+                                        @if (contextMode == ContextMode.Normal)
+                                        {
+                                            <i class="bi bi-check-circle-fill effort-option__check" aria-hidden="true"></i>
+                                        }
+                                    </span>
+                                    <span class="effort-option__desc">Quick replies for everyday questions.</span>
+                                </span>
+                            </button>
+
+                            <button type="button"
+                                    class="effort-option @(contextMode == ContextMode.Deep ? "is-active" : "") @(!isPremium ? "is-locked" : "")"
+                                    disabled="@(!isPremium)"
+                                    aria-disabled="@(!isPremium)"
+                                    @onclick="() => SetContextMode(ContextMode.Deep)">
+                                <span class="effort-option__icon" aria-hidden="true">
+                                    <i class="bi bi-stars"></i>
+                                </span>
+                                <span class="effort-option__body">
+                                    <span class="effort-option__title">
+                                        <span>Deep</span>
+                                        @if (!isPremium)
+                                        {
+                                            <span class="effort-option__badge">
+                                                <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                                                <span>Premium</span>
+                                            </span>
+                                        }
+                                        else if (contextMode == ContextMode.Deep)
+                                        {
+                                            <i class="bi bi-check-circle-fill effort-option__check" aria-hidden="true"></i>
+                                        }
+                                    </span>
+                                    <span class="effort-option__desc">Uses your full workout history for tailored answers.</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-messages">
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="chat-error">@errorMessage</div>
+                    }
+
+                    @if (SelectedConversation is null)
+                    {
+                        <div class="chat-empty">Select a chat or start a new one.</div>
+                    }
+                    else if (SelectedConversation.Messages.Count == 0)
+                    {
+                        <div class="chat-empty">No messages yet. Say hello to start!</div>
+                        <div class="chat-suggestions">
+                            <button class="chat-suggestion" @onclick='() => SetPrompt("Build me a 3-day workout split")'>3-day workout split</button>
+                            <button class="chat-suggestion" @onclick='() => SetPrompt("How should I warm up for leg day?")'>Leg day warm-up</button>
+                            <button class="chat-suggestion" @onclick='() => SetPrompt("What should I eat post-workout?")'>Post-workout meals</button>
+                        </div>
+                    }
+                    else
+                    {
+                        foreach (var message in SelectedConversation.Messages)
+                        {
+                            <div class="chat-message @(message.Role == ChatRole.User ? "user-message" : "assistant-message")">
+                                @message.Content
+                            </div>
+                        }
+                    }
+
+                    @if (isSending)
+                    {
+                        <div class="chat-message assistant-message chat-typing">Assistant is typing...</div>
+                    }
+
+                    <div class="chat-scroll-anchor" aria-hidden="true"></div>
+                </div>
+
+                <form class="chat-input-container @(IsInputDisabled ? "is-disabled" : "")" @onsubmit="SendMessageAsync" @onsubmit:preventDefault="true">
+                    <div class="chat-input-shell @(IsInputDisabled ? "is-disabled" : "")">
+                        <textarea class="chat-input"
+                                  placeholder="Type a message..."
+                                  rows="1"
+                                  disabled="@IsInputDisabled"
+                                  @ref="_messageInput"
+                                  @bind-value="currentMessage"
+                                  @bind-value:event="oninput"
+                                  @bind-value:after="HandleInputChangedAsync"></textarea>
+                        <button class="send-button @(IsSendReady ? "" : "is-disabled")"
+                                type="button"
+                                disabled="@(!IsSendReady)"
+                                @onclick="SendMessageAsync"
+                                aria-label="Send message"
+                                aria-disabled="@(!IsSendReady)">
+                            <i class="bi bi-send" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </form>
+
+                @if (RemainingRequestsToday == 1)
+                {
+                    <div class="chat-quota-note">This is your last remaining message left today.</div>
+                }
+
+                @if (isQuotaLimited)
+                {
+                    <div class="chat-quota-note chat-quota-note--limit">Daily chat limit reached. Try again tomorrow.</div>
+                }
+            </section>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="chat-unauthorized">
+            <h2>Sign in required</h2>
+            <p>You need to be logged in to use the AI chat.</p>
+            <a class="btn btn-primary" href="/login">Go to login</a>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string? currentMessage;
+    private string? errorMessage;
+    private bool isSending;
+    private bool isPanelOpen = false;
+    private bool isEffortMenuOpen;
+    private int lastRenderedMessageCount;
+    private ContextMode contextMode = ContextMode.Normal;
+    private bool isPremium;
+    private bool isQuotaLimited;
+    private bool isQuotaLoading = true;
+    private int? remainingRequestsToday;
+    private ElementReference _messageInput;
+
+    private bool IsInputDisabled => isQuotaLoading || isQuotaLimited;
+
+    private bool IsSendReady => !isSending && !IsInputDisabled && !string.IsNullOrWhiteSpace(currentMessage);
+
+    private int? RemainingRequestsToday => isPremium ? null : remainingRequestsToday;
+
+    private string EffortLabel => contextMode == ContextMode.Normal ? "Normal" : "Deep";
+
+    private string ModeIcon => contextMode == ContextMode.Normal ? "bi-lightning-charge-fill" : "bi-stars";
+
+    private ChatConversationDetailDto? SelectedConversation => ChatHistoryState.SelectedConversation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ChatHistoryState.SelectedConversationChanged += OnSelectedConversationChanged;
+        await ChatHistoryState.LoadConversationsAsync();
+        await LoadQuotaStatusAsync();
+
+        if (ChatHistoryState.SelectedConversation is null)
+        {
+            ChatHistoryState.StartNewConversation();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", isPanelOpen);
+            await JS.InvokeVoidAsync("chatUi.autoGrow", _messageInput);
+        }
+
+        var messageCount = SelectedConversation?.Messages.Count ?? 0;
+        if (firstRender || messageCount != lastRenderedMessageCount)
+        {
+            await JS.InvokeVoidAsync("chatUi.scrollToBottomIfNearBottom", ".chat-messages", 140);
+            lastRenderedMessageCount = messageCount;
+        }
+    }
+
+    private void OnSelectedConversationChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (string.IsNullOrWhiteSpace(currentMessage) || isSending || IsInputDisabled)
+        {
+            return;
+        }
+
+        if (SelectedConversation is null)
+        {
+            ChatHistoryState.StartNewConversation();
+        }
+
+        if (SelectedConversation is null)
+        {
+            return;
+        }
+
+        isSending = true;
+        errorMessage = null;
+        var userMessage = new ChatMessageDto { Role = ChatRole.User, Content = currentMessage.Trim() };
+        SelectedConversation.Messages.Add(userMessage);
+        currentMessage = string.Empty;
+        await InvokeAsync(StateHasChanged);
+        await JS.InvokeVoidAsync("chatUi.autoGrow", _messageInput);
+
+        var response = await ChatService.SendMessageAsync(
+            SelectedConversation.Id == 0 ? null : SelectedConversation.Id,
+            SelectedConversation.Messages,
+            contextMode);
+
+        if (response?.Success == true && !string.IsNullOrWhiteSpace(response.Response))
+        {
+            SelectedConversation.Messages.Add(new ChatMessageDto
+            {
+                Role = ChatRole.Assistant,
+                Content = response.Response
+            });
+
+            await ChatHistoryState.RefreshConversationsAsync(response.ConversationId);
+            remainingRequestsToday = response.RemainingRequestsToday;
+            isQuotaLimited = !isPremium && remainingRequestsToday == 0;
+        }
+        else
+        {
+            errorMessage = response?.Message ?? "No response received. Please try again.";
+        }
+
+        if (response?.IsQuotaLimited == true)
+        {
+            await LoadQuotaStatusAsync();
+        }
+
+        isSending = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadQuotaStatusAsync()
+    {
+        isQuotaLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var status = await ChatService.GetQuotaStatusAsync();
+        if (status is not null)
+        {
+            isPremium = status.IsPremium;
+            isQuotaLimited = status.IsQuotaLimited;
+            remainingRequestsToday = status.RemainingRequestsToday;
+        }
+
+        isQuotaLoading = false;
+    }
+
+    private void ToggleEffortMenu()
+    {
+        isEffortMenuOpen = !isEffortMenuOpen;
+    }
+
+    private async Task TogglePanel()
+    {
+        isPanelOpen = !isPanelOpen;
+        await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", isPanelOpen);
+    }
+
+    private async Task ClosePanel()
+    {
+        if (!isPanelOpen)
+        {
+            return;
+        }
+
+        isPanelOpen = false;
+        await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", false);
+    }
+
+    private void SetPrompt(string prompt)
+    {
+        currentMessage = prompt;
+    }
+
+    private void SetContextMode(ContextMode mode)
+    {
+        if (mode == ContextMode.Deep && !isPremium)
+        {
+            return;
+        }
+
+        contextMode = mode;
+        isEffortMenuOpen = false;
+    }
+
+    private void StartNewConversation()
+    {
+        ChatHistoryState.StartNewConversation();
+    }
+
+    private async Task HandleInputChangedAsync()
+    {
+        await JS.InvokeVoidAsync("chatUi.autoGrow", _messageInput);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ChatHistoryState.SelectedConversationChanged -= OnSelectedConversationChanged;
+        await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", false);
+    }
+}

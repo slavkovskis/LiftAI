@@ -1,0 +1,168 @@
+.exercises-page {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.exercises-page__header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-bottom: 1.3rem;
+}
+
+.exercises-page__new-button {
+    width: 100%;
+}
+
+.exercises-form,
+.exercises-filters {
+    border-color: var(--app-border);
+    background: var(--app-card);
+    box-shadow: var(--app-shadow-soft);
+}
+
+#exercise-form {
+    scroll-margin-top: 5rem;
+}
+
+.exercises-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.exercises-form__actions .btn {
+    flex: 1;
+    min-width: 0;
+}
+
+.exercise-group__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.45rem;
+}
+
+.exercise-groups-picker {
+    border: 1px solid var(--app-border);
+    border-radius: 1rem;
+    background: var(--app-card);
+    padding: 1rem;
+    box-shadow: var(--app-shadow-soft);
+}
+
+.exercise-groups-picker__list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.exercise-groups-picker__button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.exercise-group__list {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.exercise-card {
+    border: 1px solid var(--app-border);
+    background: var(--app-card);
+    border-radius: 1rem;
+    padding: 1rem;
+    box-shadow: var(--app-shadow-soft);
+    transition: transform var(--app-motion), box-shadow var(--app-motion), border-color var(--app-motion);
+}
+
+.exercise-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--app-border-strong);
+    box-shadow: var(--app-shadow);
+}
+
+.exercise-card__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.65rem;
+}
+
+.exercise-card__chips {
+    display: inline-flex;
+    align-items: center;
+}
+
+.exercise-card__actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.85rem;
+}
+
+.exercise-card__actions .btn {
+    flex: 1;
+}
+
+.exercise-card__hint {
+    margin-top: 0.45rem;
+}
+
+.exercise-card__confirm-delete {
+    margin-top: 0.7rem;
+    border: 1px solid #f0c5cb;
+    border-radius: 0.8rem;
+    background: #fff5f6;
+    padding: 0.7rem;
+}
+
+.exercise-card__confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.exercise-card__confirm-actions .btn {
+    flex: 1;
+}
+
+.exercise-card__details {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--app-border);
+    padding-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .exercises-page__header {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .exercises-page__new-button {
+        width: auto;
+    }
+
+    .exercise-card__actions {
+        width: fit-content;
+    }
+
+    .exercise-card__actions .btn {
+        flex: initial;
+    }
+
+    .exercise-card__confirm-actions {
+        width: fit-content;
+    }
+
+    .exercise-card__confirm-actions .btn {
+        flex: initial;
+    }
+
+    .exercise-groups-picker__list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+
+

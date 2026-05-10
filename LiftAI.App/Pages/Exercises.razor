@@ -1,0 +1,756 @@
+@page "/exercises"
+@using LiftAI.App.Services
+@using LiftAI.Shared.Models.Dtos.Exercise
+@inject ExerciseService ExerciseService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Exercises</PageTitle>
+
+<section class="exercises-page">
+    <header class="exercises-page__header">
+        <div>
+            <h1 class="h3 mb-1">Exercises</h1>
+            <p class="text-muted mb-0">Browse, search, and manage your exercise library.</p>
+        </div>
+
+        @if (_mode == ExerciseScreenMode.List)
+        {
+            <button type="button" class="btn btn-primary exercises-page__new-button" @onclick="StartCreate">
+                + New Exercise
+            </button>
+        }
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @(_isError ? "alert-danger" : "alert-success") mb-3">@_message</div>
+    }
+
+    @if (_mode != ExerciseScreenMode.List)
+    {
+        <section id="exercise-form" class="card exercises-form mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                    <div>
+                        <h2 class="h5 mb-1">@(_mode == ExerciseScreenMode.Create ? "Create Exercise" : "Edit Exercise")</h2>
+                        <p class="text-muted mb-0">Keep names and muscle groups clear so they are easy to find later.</p>
+                    </div>
+                </div>
+
+                <EditForm Model="CurrentFormModel" OnSubmit="HandleFormSubmitAsync">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <InputText class="form-control"
+                                   @bind-Value="CurrentName"
+                                   disabled="@IsSystemLocked" />
+                        @if (IsSystemLocked)
+                        {
+                            <div class="form-text">This field is locked for system exercises.</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Muscle Group</label>
+                        <InputSelect class="form-select"
+                                     @bind-Value="CurrentMuscleGroup"
+                                     disabled="@IsSystemLocked">
+                            <option value="">Select an existing muscle group</option>
+                            @foreach (var group in AvailableMuscleGroups)
+                            {
+                                <option value="@group">@group</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <InputTextArea class="form-control" rows="3" @bind-Value="CurrentDescription" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Default Rest (seconds)</label>
+                        <InputNumber class="form-control" @bind-Value="CurrentRestSeconds" />
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <InputCheckbox class="form-check-input"
+                                       id="isTimed"
+                                       @bind-Value="CurrentIsTimed"
+                                       disabled="@IsSystemLocked" />
+                        <label class="form-check-label" for="isTimed">Timed exercise</label>
+                        @if (IsSystemLocked)
+                        {
+                            <div class="form-text">System exercise type cannot be changed.</div>
+                        }
+                    </div>
+
+                    @if (IsSystemLocked)
+                    {
+                        <div class="alert alert-info py-2 mb-3">
+                            For system exercises, only description and default rest can be edited.
+                        </div>
+                    }
+
+                    <div class="exercises-form__actions">
+                        <button type="submit" class="btn btn-success" disabled="@_isSaving">
+                            @(_isSaving ? "Saving..." : "Save")
+                        </button>
+
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CancelForm" disabled="@_isSaving">
+                            Cancel
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </section>
+    }
+
+    <section class="card exercises-filters mb-3">
+        <div class="card-body">
+            <div>
+                <label class="form-label">Search</label>
+                <input class="form-control"
+                       placeholder="Search by name, muscle group, or description"
+                       value="@_searchText"
+                       @oninput="HandleSearchInput" />
+            </div>
+        </div>
+    </section>
+
+    @if (_isLoading)
+    {
+        <p class="text-muted">Loading exercises...</p>
+    }
+    else if (VisibleGroups.Count == 0)
+    {
+        <p class="text-muted">No exercises match your filters.</p>
+    }
+    else
+    {
+        <section class="exercise-groups-picker mb-3">
+            <h2 class="h6 mb-2">Muscle Groups</h2>
+
+            <div class="exercise-groups-picker__list">
+                @foreach (var group in VisibleGroups)
+                {
+                    <button type="button"
+                            class="btn @(string.Equals(_selectedGroup, group, StringComparison.OrdinalIgnoreCase) ? "btn-primary" : "btn-outline-secondary") exercise-groups-picker__button"
+                            @onclick="() => SelectGroup(group)">
+                        <span>@group</span>
+                        <span class="badge text-bg-light border">@GetGroupCount(group)</span>
+                    </button>
+                }
+            </div>
+        </section>
+
+        @if (string.IsNullOrWhiteSpace(_selectedGroup))
+        {
+            <p class="text-muted">Select a muscle group to view its exercises.</p>
+        }
+        else
+        {
+            <section class="exercise-group mb-3">
+                <header class="exercise-group__header">
+                    <h2 class="h6 mb-0">@_selectedGroup</h2>
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearSelectedGroup">
+                        Clear selection
+                    </button>
+                </header>
+
+                <div class="exercise-group__list">
+                    @foreach (var exercise in SelectedGroupExercises)
+                    {
+                        <article class="exercise-card">
+                            <div class="exercise-card__row">
+                                <div>
+                                    <h3 class="h6 mb-1">@exercise.Name</h3>
+                                    <p class="text-muted small mb-0">
+                                        @(exercise.IsTimed ? "Timed" : "Reps") • @exercise.DefaultRestSeconds s rest
+                                    </p>
+                                </div>
+
+                                <div class="exercise-card__chips">
+                                    @if (exercise.IsSystem)
+                                    {
+                                        <span class="badge text-bg-light border">System</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="exercise-card__actions">
+                                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => ToggleDetailsAsync(exercise)">
+                                    @(_expandedExerciseId == exercise.Id ? "Hide" : "View")
+                                </button>
+
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => StartEdit(exercise)">
+                                    Edit
+                                </button>
+
+                                <button type="button"
+                                        class="btn btn-outline-danger btn-sm"
+                                        @onclick="() => RequestDelete(exercise.Id)"
+                                        disabled="@(exercise.IsSystem || _isDeleting)">
+                                    Delete
+                                </button>
+                            </div>
+
+                            @if (exercise.IsSystem)
+                            {
+                                <div class="form-text exercise-card__hint">System exercises cannot be deleted.</div>
+                            }
+
+                            @if (_pendingDeleteExerciseId == exercise.Id)
+                            {
+                                <section class="exercise-card__confirm-delete">
+                                    <p class="mb-2">Delete <strong>@exercise.Name</strong>? This cannot be undone.</p>
+
+                                    <div class="exercise-card__confirm-actions">
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm"
+                                                @onclick="() => HandleDeleteAsync(exercise)"
+                                                disabled="@_isDeleting">
+                                            @(_isDeleting ? "Deleting..." : "Confirm delete")
+                                        </button>
+
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm"
+                                                @onclick="CancelDelete"
+                                                disabled="@_isDeleting">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </section>
+                            }
+
+                            @if (_expandedExerciseId == exercise.Id)
+                            {
+                                <section class="exercise-card__details">
+                                    @if (_isLoadingDetail)
+                                    {
+                                        <p class="text-muted mb-0">Loading details...</p>
+                                    }
+                                    else if (_selectedDetail is null)
+                                    {
+                                        <p class="text-muted mb-0">Could not load exercise details.</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="mb-1"><strong>Muscle Group:</strong> @_selectedDetail.MuscleGroup</p>
+                                        <p class="mb-1"><strong>Type:</strong> @(_selectedDetail.IsTimed ? "Timed" : "Reps")</p>
+                                        <p class="mb-1"><strong>Default Rest:</strong> @_selectedDetail.DefaultRestSeconds s</p>
+                                        <p class="mb-0">
+                                            <strong>Description:</strong>
+                                            @(string.IsNullOrWhiteSpace(_selectedDetail.Description)
+                                                ? "No description yet."
+                                                : _selectedDetail.Description)
+                                        </p>
+                                    }
+                                </section>
+                            }
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    private enum ExerciseScreenMode
+    {
+        List,
+        Create,
+        Edit
+    }
+
+    private readonly ExerciseCreateDto _createModel = new()
+    {
+        Name = string.Empty,
+        MuscleGroup = string.Empty
+    };
+    private readonly ExerciseUpdateDto _editModel = new()
+    {
+        Name = string.Empty,
+        MuscleGroup = string.Empty
+    };
+
+    private List<ExerciseDto> _allExercises = [];
+    private ExerciseScreenMode _mode = ExerciseScreenMode.List;
+    private int? _editingExerciseId;
+    private bool _editingIsSystem;
+    private bool _isLoading = true;
+    private bool _isLoadingDetail;
+    private bool _isSaving;
+    private bool _isDeleting;
+    private bool _isError;
+    private string _searchText = string.Empty;
+    private string? _selectedGroup;
+    private string? _message;
+    private int? _expandedExerciseId;
+    private int? _pendingDeleteExerciseId;
+    private ExerciseDetailDto? _selectedDetail;
+
+    private const string LoginRequiredEditMessage = "You need to log in to create, edit, or delete exercises.";
+
+    private object CurrentFormModel => _mode == ExerciseScreenMode.Create ? _createModel : _editModel;
+    private bool IsSystemLocked => _mode == ExerciseScreenMode.Edit && _editingIsSystem;
+
+    private string CurrentName
+    {
+        get => _mode == ExerciseScreenMode.Create ? _createModel.Name : _editModel.Name;
+        set
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                _createModel.Name = value;
+                return;
+            }
+
+            _editModel.Name = value;
+        }
+    }
+
+    private string CurrentMuscleGroup
+    {
+        get => _mode == ExerciseScreenMode.Create ? _createModel.MuscleGroup : _editModel.MuscleGroup;
+        set
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                _createModel.MuscleGroup = value;
+                return;
+            }
+
+            _editModel.MuscleGroup = value;
+        }
+    }
+
+    private string? CurrentDescription
+    {
+        get => _mode == ExerciseScreenMode.Create ? _createModel.Description : _editModel.Description;
+        set
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                _createModel.Description = value;
+                return;
+            }
+
+            _editModel.Description = value;
+        }
+    }
+
+    private int CurrentRestSeconds
+    {
+        get => _mode == ExerciseScreenMode.Create ? _createModel.DefaultRestSeconds : _editModel.DefaultRestSeconds;
+        set
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                _createModel.DefaultRestSeconds = value;
+                return;
+            }
+
+            _editModel.DefaultRestSeconds = value;
+        }
+    }
+
+    private bool CurrentIsTimed
+    {
+        get => _mode == ExerciseScreenMode.Create ? _createModel.IsTimed : _editModel.IsTimed;
+        set
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                _createModel.IsTimed = value;
+                return;
+            }
+
+            _editModel.IsTimed = value;
+        }
+    }
+
+    private List<string> VisibleGroups => SearchFilteredExercises
+        .Select(e => e.MuscleGroup)
+        .Where(group => !string.IsNullOrWhiteSpace(group))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(group => group)
+        .ToList();
+
+    private List<string> AvailableMuscleGroups => _allExercises
+        .Select(e => e.MuscleGroup)
+        .Where(group => !string.IsNullOrWhiteSpace(group))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(group => group)
+        .ToList();
+
+    private List<ExerciseDto> SearchFilteredExercises =>
+        _allExercises
+            .Where(MatchesSearch)
+            .OrderBy(e => e.Name)
+            .ToList();
+
+    private List<ExerciseDto> SelectedGroupExercises =>
+        SearchFilteredExercises
+            .Where(e => string.Equals(e.MuscleGroup, _selectedGroup, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _createModel.DefaultRestSeconds = 120;
+        await ReloadExercisesAsync();
+    }
+
+    private async Task ReloadExercisesAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var exercises = await ExerciseService.GetAllExercisesAsync();
+            _allExercises = exercises
+                .OrderBy(e => e.MuscleGroup)
+                .ThenBy(e => e.Name)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(_selectedGroup)
+                && !VisibleGroups.Any(group => group.Equals(_selectedGroup, StringComparison.OrdinalIgnoreCase)))
+            {
+                _selectedGroup = null;
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private bool MatchesSearch(ExerciseDto exercise)
+    {
+        if (string.IsNullOrWhiteSpace(_searchText))
+        {
+            return true;
+        }
+
+        return exercise.Name.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+               || exercise.MuscleGroup.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+               || (exercise.Description?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void HandleSearchInput(ChangeEventArgs args)
+    {
+        _searchText = args.Value?.ToString() ?? string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(_selectedGroup)
+            && !VisibleGroups.Any(group => group.Equals(_selectedGroup, StringComparison.OrdinalIgnoreCase)))
+        {
+            _selectedGroup = null;
+        }
+    }
+
+    private void SelectGroup(string group)
+    {
+        _pendingDeleteExerciseId = null;
+        _selectedGroup = group;
+    }
+
+    private void ClearSelectedGroup()
+    {
+        _selectedGroup = null;
+        _pendingDeleteExerciseId = null;
+    }
+
+    private int GetGroupCount(string group)
+    {
+        return SearchFilteredExercises.Count(e => e.MuscleGroup.Equals(group, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void StartCreate()
+    {
+        _mode = ExerciseScreenMode.Create;
+        _pendingDeleteExerciseId = null;
+        _message = null;
+        _isError = false;
+        _createModel.Name = string.Empty;
+        _createModel.MuscleGroup = string.Empty;
+        _createModel.Description = null;
+        _createModel.DefaultRestSeconds = 120;
+        _createModel.IsTimed = false;
+    }
+
+    private void StartEdit(ExerciseDto exercise)
+    {
+        _mode = ExerciseScreenMode.Edit;
+        _pendingDeleteExerciseId = null;
+        _selectedGroup = exercise.MuscleGroup;
+        _editingExerciseId = exercise.Id;
+        _editingIsSystem = exercise.IsSystem;
+        _message = null;
+        _isError = false;
+
+        _editModel.Name = exercise.Name;
+        _editModel.MuscleGroup = exercise.MuscleGroup;
+        _editModel.Description = exercise.Description;
+        _editModel.DefaultRestSeconds = exercise.DefaultRestSeconds;
+        _editModel.IsTimed = exercise.IsTimed;
+
+        NavigationManager.NavigateTo("/exercises#exercise-form");
+    }
+
+    private void CancelForm()
+    {
+        _mode = ExerciseScreenMode.List;
+        _editingExerciseId = null;
+        _editingIsSystem = false;
+        _message = null;
+    }
+
+    private void RequestDelete(int exerciseId)
+    {
+        _message = null;
+        _isError = false;
+
+        if (_pendingDeleteExerciseId == exerciseId)
+        {
+            _pendingDeleteExerciseId = null;
+            return;
+        }
+
+        _pendingDeleteExerciseId = exerciseId;
+    }
+
+    private void CancelDelete()
+    {
+        _pendingDeleteExerciseId = null;
+    }
+
+    private async Task HandleDeleteAsync(ExerciseDto exercise)
+    {
+        if (_isDeleting)
+        {
+            return;
+        }
+
+        if (exercise.IsSystem)
+        {
+            _message = "System exercises cannot be deleted.";
+            _isError = true;
+            return;
+        }
+
+        _isDeleting = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            var deleteStatus = await ExerciseService.DeleteExerciseAsync(exercise.Id);
+
+            if (deleteStatus == ExerciseWriteStatus.Unauthorized)
+            {
+                _message = LoginRequiredEditMessage;
+                _isError = true;
+                return;
+            }
+
+            if (deleteStatus != ExerciseWriteStatus.Success)
+            {
+                _message = "Could not delete exercise. Please try again.";
+                _isError = true;
+                return;
+            }
+
+            _allExercises = _allExercises
+                .Where(e => e.Id != exercise.Id)
+                .OrderBy(e => e.MuscleGroup)
+                .ThenBy(e => e.Name)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(_selectedGroup)
+                && !_allExercises.Any(e => e.MuscleGroup.Equals(_selectedGroup, StringComparison.OrdinalIgnoreCase)))
+            {
+                _selectedGroup = null;
+            }
+
+            if (_expandedExerciseId == exercise.Id)
+            {
+                _expandedExerciseId = null;
+                _selectedDetail = null;
+            }
+
+            _pendingDeleteExerciseId = null;
+            _message = "Exercise deleted successfully.";
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private async Task HandleFormSubmitAsync(EditContext _)
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        var validationMessage = ValidateCurrentForm();
+
+        if (!string.IsNullOrWhiteSpace(validationMessage))
+        {
+            _message = validationMessage;
+            _isError = true;
+            return;
+        }
+
+        _isSaving = true;
+        _message = null;
+        _isError = false;
+
+        try
+        {
+            if (_mode == ExerciseScreenMode.Create)
+            {
+                var createStatus = await ExerciseService.CreateExerciseAsync(_createModel);
+
+                if (createStatus == ExerciseWriteStatus.Unauthorized)
+                {
+                    _message = LoginRequiredEditMessage;
+                    _isError = true;
+                    return;
+                }
+
+                if (createStatus != ExerciseWriteStatus.Success)
+                {
+                    _message = "Could not create exercise. Please try again.";
+                    _isError = true;
+                    return;
+                }
+
+                await ReloadExercisesAsync();
+                _mode = ExerciseScreenMode.List;
+                _message = "Exercise created successfully.";
+                return;
+            }
+
+            if (_editingExerciseId is null)
+            {
+                _message = "Could not determine which exercise to update.";
+                _isError = true;
+                return;
+            }
+
+            var updateResult = await ExerciseService.UpdateExerciseAsync(_editingExerciseId.Value, _editModel);
+
+            if (updateResult.Status == ExerciseWriteStatus.Unauthorized)
+            {
+                _message = LoginRequiredEditMessage;
+                _isError = true;
+                return;
+            }
+
+            if (updateResult.Status != ExerciseWriteStatus.Success || updateResult.Exercise is null)
+            {
+                _message = "Could not update exercise. Please try again.";
+                _isError = true;
+                return;
+            }
+
+            var updated = updateResult.Exercise;
+
+            var index = _allExercises.FindIndex(e => e.Id == updated.Id);
+
+            if (index >= 0)
+            {
+                _allExercises[index] = updated;
+            }
+
+            _allExercises = _allExercises
+                .OrderBy(e => e.MuscleGroup)
+                .ThenBy(e => e.Name)
+                .ToList();
+
+            _mode = ExerciseScreenMode.List;
+            _message = "Exercise updated successfully.";
+
+            if (_expandedExerciseId == updated.Id)
+            {
+                _selectedDetail = new ExerciseDetailDto
+                {
+                    Name = updated.Name,
+                    MuscleGroup = updated.MuscleGroup,
+                    Description = updated.Description,
+                    DefaultRestSeconds = updated.DefaultRestSeconds,
+                    IsTimed = updated.IsTimed,
+                    IsSystem = updated.IsSystem
+                };
+            }
+        }
+        finally
+        {
+            _isSaving = false;
+            _editingExerciseId = null;
+            _editingIsSystem = false;
+        }
+    }
+
+    private string? ValidateCurrentForm()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentName))
+        {
+            return "Exercise name is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(CurrentMuscleGroup))
+        {
+            return "Muscle group is required.";
+        }
+
+        if (!AvailableMuscleGroups.Any(group => group.Equals(CurrentMuscleGroup, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Select an existing muscle group.";
+        }
+
+        if (CurrentRestSeconds < 0)
+        {
+            return "Default rest must be zero or a positive number.";
+        }
+
+        return null;
+    }
+
+    private async Task ToggleDetailsAsync(ExerciseDto exercise)
+    {
+        _message = null;
+
+        if (_expandedExerciseId == exercise.Id)
+        {
+            _expandedExerciseId = null;
+            _selectedDetail = null;
+            return;
+        }
+
+        _expandedExerciseId = exercise.Id;
+        _isLoadingDetail = true;
+        _selectedDetail = null;
+
+        try
+        {
+            _selectedDetail = await ExerciseService.GetExerciseByIdAsync(exercise.Id)
+                              ?? new ExerciseDetailDto
+                              {
+                                  Name = exercise.Name,
+                                  MuscleGroup = exercise.MuscleGroup,
+                                  Description = exercise.Description,
+                                  DefaultRestSeconds = exercise.DefaultRestSeconds,
+                                  IsTimed = exercise.IsTimed,
+                                  IsSystem = exercise.IsSystem
+                              };
+        }
+        finally
+        {
+            _isLoadingDetail = false;
+        }
+    }
+}

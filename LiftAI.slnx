@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="LiftAI.Api/LiftAI.Api.csproj" />
+  <Project Path="LiftAI.App/LiftAI.App.csproj" />
+  <Project Path="LiftAI.Shared/LiftAI.Shared.csproj" />
+</Solution>

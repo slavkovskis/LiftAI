@@ -1,0 +1,52 @@
+.rest-timer {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.rest-timer__ring {
+    --progress: 0;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    padding: 0.5rem;
+    background:
+        radial-gradient(circle closest-side, #fff7ec 68%, transparent 69% 100%),
+        conic-gradient(var(--app-accent-strong) calc(var(--progress) * 1%), var(--app-border) 0);
+    box-shadow: inset 0 0 0 1px var(--app-border);
+}
+
+.rest-timer__time {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.rest-timer__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.rest-timer__popup {
+    margin-bottom: 0;
+}
+
+.rest-timer__notification {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(30rem, calc(100vw - 1rem));
+    z-index: 1090;
+}
+
+@media (max-width: 576px) {
+    .rest-timer__notification {
+        top: 0.5rem;
+        width: calc(100vw - 0.75rem);
+    }
+}
+

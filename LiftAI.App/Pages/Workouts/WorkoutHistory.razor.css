@@ -1,0 +1,103 @@
+.history-page {
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.history-page__header {
+    margin-bottom: 1.3rem;
+}
+
+.history-table {
+    background: var(--app-card);
+    border: 1px solid var(--app-border);
+    border-radius: 1.1rem;
+    box-shadow: var(--app-shadow-soft);
+    overflow: hidden;
+}
+
+.history-table .table {
+    margin-bottom: 0;
+}
+
+.history-cards {
+    display: none;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.history-card {
+    text-align: left;
+    border: 1px solid var(--app-border);
+    border-radius: 1rem;
+    background: var(--app-card);
+    padding: 1rem 1.1rem;
+    box-shadow: var(--app-shadow-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: transform var(--app-motion), box-shadow var(--app-motion), border-color var(--app-motion);
+}
+
+.history-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--app-border-strong);
+    box-shadow: var(--app-shadow);
+}
+
+.history-card__date {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.history-date-group,
+.history-card__date-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.history-date-group__chips,
+.history-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.history-date-group__chip,
+.history-card__chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--app-border-strong);
+    background: var(--app-chip);
+    color: var(--app-text-soft);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    text-transform: capitalize;
+}
+
+.history-card__meta {
+    display: flex;
+    justify-content: space-between;
+    color: var(--app-text-soft);
+    font-size: 0.92rem;
+}
+
+.history-card__cta {
+    font-weight: 600;
+    color: var(--app-accent-strong);
+}
+
+@media (max-width: 720px) {
+    .history-table {
+        display: none;
+    }
+
+    .history-cards {
+        display: flex;
+    }
+}
+

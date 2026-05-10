@@ -1,0 +1,38 @@
+.set-row {
+    background: var(--app-card);
+    border-color: var(--app-border) !important;
+    box-shadow: var(--app-shadow-soft);
+}
+
+.set-row__actions .btn {
+    min-width: 6rem;
+}
+
+.rir-info {
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--app-text-soft);
+    background: var(--app-chip);
+    border: 1px solid var(--app-border-strong);
+}
+
+::deep(.form-text) {
+    color: var(--app-text-soft);
+}
+
+@media (max-width: 640px) {
+    .set-row__actions {
+        width: 100%;
+    }
+
+    .set-row__actions .btn {
+        flex: 1;
+    }
+}
+
