@@ -20,12 +20,6 @@
         <div class="chat-shell">
             <aside class="chat-panel @(isPanelOpen ? "is-open" : "")">
                 <ConversationList IsVisible="isPanelOpen" IsVisibleChanged="TogglePanel" />
-                <div class="chat-panel__footer">
-                    <button type="button" class="chat-new-button chat-icon-button" @onclick="StartNewConversation" aria-label="New conversation">
-                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                        <span>New</span>
-                    </button>
-                </div>
             </aside>
             <div class="chat-overlay @(isPanelOpen ? "is-visible" : "")" @onclick="ClosePanel"></div>
 
@@ -345,10 +339,6 @@
         isEffortMenuOpen = false;
     }
 
-    private void StartNewConversation()
-    {
-        ChatHistoryState.StartNewConversation();
-    }
 
     private async Task HandleInputChangedAsync()
     {
