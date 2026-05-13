@@ -8,6 +8,7 @@
 @using LiftAI.Shared.Models.Dtos.Chat
 @using LiftAI.Shared.Models.Dtos.Conversation
 @using LiftAI.Shared.Models.Enums
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ChatService ChatService
 @inject ChatHistoryState ChatHistoryState
 @inject IJSRuntime JS
@@ -183,6 +184,7 @@
     private bool isQuotaLoading = true;
     private int? remainingRequestsToday;
     private ElementReference _messageInput;
+    private bool isAuthorized;
 
     private bool IsInputDisabled => isQuotaLoading || isQuotaLimited;
 
@@ -198,6 +200,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthorized = authenticationState.User.Identity?.IsAuthenticated == true;
+
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         ChatHistoryState.SelectedConversationChanged += OnSelectedConversationChanged;
         await ChatHistoryState.LoadConversationsAsync();
         await LoadQuotaStatusAsync();
@@ -210,6 +220,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         if (firstRender)
         {
             await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", isPanelOpen);
@@ -231,7 +246,7 @@
 
     private async Task SendMessageAsync()
     {
-        if (string.IsNullOrWhiteSpace(currentMessage) || isSending || IsInputDisabled)
+        if (!isAuthorized || string.IsNullOrWhiteSpace(currentMessage) || isSending || IsInputDisabled)
         {
             return;
         }
@@ -287,6 +302,11 @@
 
     private async Task LoadQuotaStatusAsync()
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         isQuotaLoading = true;
         await InvokeAsync(StateHasChanged);
 
@@ -308,13 +328,18 @@
 
     private async Task TogglePanel()
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         isPanelOpen = !isPanelOpen;
         await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", isPanelOpen);
     }
 
     private async Task ClosePanel()
     {
-        if (!isPanelOpen)
+        if (!isAuthorized || !isPanelOpen)
         {
             return;
         }
@@ -325,11 +350,21 @@
 
     private void SetPrompt(string prompt)
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         currentMessage = prompt;
     }
 
     private void SetContextMode(ContextMode mode)
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         if (mode == ContextMode.Deep && !isPremium)
         {
             return;
@@ -342,12 +377,20 @@
 
     private async Task HandleInputChangedAsync()
     {
+        if (!isAuthorized)
+        {
+            return;
+        }
+
         await JS.InvokeVoidAsync("chatUi.autoGrow", _messageInput);
     }
 
     public async ValueTask DisposeAsync()
     {
-        ChatHistoryState.SelectedConversationChanged -= OnSelectedConversationChanged;
-        await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", false);
+        if (isAuthorized)
+        {
+            ChatHistoryState.SelectedConversationChanged -= OnSelectedConversationChanged;
+            await JS.InvokeVoidAsync("chatUi.setBodyScrollLock", false);
+        }
     }
 }

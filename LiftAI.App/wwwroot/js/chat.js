@@ -19,7 +19,7 @@ window.chatUi = {
         }
     },
     autoGrow: function (element) {
-        if (!element) {
+         if (!element || !element.style || typeof element.scrollHeight !== "number") {
             return;
         }
 
