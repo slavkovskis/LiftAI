@@ -72,7 +72,6 @@ public class ConversationService(
         conversation.LastMessageAt = DateTime.UtcNow;
         conversation.UpdatedAt = DateTime.UtcNow;
 
-        // Set title from AI's first response after the conversation is new.
         if (conversation.Title == DefaultTitle && role == ChatRole.Assistant)
         {
             conversation.Title = await BuildTitleAsync(content, ct);
@@ -205,7 +204,6 @@ public class ConversationService(
 
         var title = raw.Trim();
 
-        // Take only the first non-empty line in case the model rambled.
         var firstLine = title
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault();
@@ -217,7 +215,6 @@ public class ConversationService(
 
         title = firstLine.Trim();
 
-        // Strip a leading "Title:" or "Summary:" prefix that small models love to add.
         foreach (var prefix in new[] { "title:", "summary:", "topic:" })
         {
             if (title.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -226,10 +223,8 @@ public class ConversationService(
             }
         }
 
-        // Strip surrounding quotes / asterisks / backticks.
         title = title.Trim('"', '\'', '“', '”', '‘', '’', '*', '`', ' ');
 
-        // Strip trailing punctuation like a stray period or exclamation mark.
         title = title.TrimEnd('.', '!', '?', ',', ';', ':');
 
         if (string.IsNullOrWhiteSpace(title))
@@ -237,21 +232,17 @@ public class ConversationService(
             return null;
         }
 
-        // Enforce the word cap defensively in case the model ignored it.
         var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length > MaxTitleWords)
         {
             title = string.Join(' ', words.Take(MaxTitleWords));
         }
 
-        // Hard character cap so a single absurdly long word can't break layout.
         if (title.Length > MaxTitleCharacters)
         {
             title = title[..MaxTitleCharacters].TrimEnd();
         }
 
-        // Force sentence case: lowercase everything, then uppercase the very first letter.
-        // This is defensive in case the model still returns Title Case.
         title = ToSentenceCase(title);
 
         return title;
@@ -266,7 +257,6 @@ public class ConversationService(
 
         var lower = title.ToLowerInvariant();
 
-        // Capitalize only the first non-whitespace character.
         var chars = lower.ToCharArray();
         for (var i = 0; i < chars.Length; i++)
         {
